@@ -252,11 +252,9 @@ class MatchService(
 
             val minuteKey = parseMinute(e.minute, e.time) ?: -1
             val type = normEventType(e.event)
-            val noPlayer = "$matchKey|$type|$minuteKey"
-
-            val p = normPlayerKey(e.player)
-            val withPlayer = if (p.isNotEmpty()) "$noPlayer|p:$p" else noPlayer
-            return noPlayer to withPlayer
+            val baseKey = "$matchKey|$type|$minuteKey"
+            val playerKey = normPlayerKey(e.player).takeIf { it.isNotEmpty() }?.let { "$baseKey|p:$it" }
+            return baseKey to (playerKey ?: baseKey)
         }
 
         fun isBetter(newE: MatchEvent, oldE: MatchEvent): Boolean {

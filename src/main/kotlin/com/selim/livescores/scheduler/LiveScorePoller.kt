@@ -156,6 +156,7 @@ class LiveScorePoller(
 
         toPoll.forEach { state ->
             val providerId = state.id ?: return@forEach
+            val matchKey = state.matchKey
 
             val json = guardedApiCall { api.getMatchEventsJson(providerId) } ?: return@forEach
             val resp = try {
@@ -166,16 +167,17 @@ class LiveScorePoller(
             }
             if (resp.success != true) return@forEach
 
-            val matchKey = state.matchKey
             val newEvents = mutableListOf<MatchEvent>()
+            val existingByKey = state.lastEvents.associateBy {
+                stableEventKey(matchKey, it.time, it.event, it.homeAway)
+            }
 
             resp.data?.event.orEmpty()
                 .filter { !it.event.isNullOrBlank() && it.event != "." }
                 .forEach { e ->
                     // Provider `id` is not stable between polls; use a composite stable key.
                     // Important: do NOT include player name in the stable key, because provider may first send "" then later send the real name.
-                    val stableId = listOf(matchKey, e.time, e.event, e.homeAway)
-                        .joinToString(separator = "|") { (it ?: "").trim().lowercase() }
+                    val stableId = stableEventKey(matchKey, e.time, e.event, e.homeAway)
 
                     // 🔧 Prod fix: our Redis dedup store can get out of sync with the match state (different TTLs / restarts),
                     // and it also blocks "enrichment" updates (player empty -> player name later).
@@ -183,17 +185,9 @@ class LiveScorePoller(
                     //  - it's new according to dedup OR
                     //  - the current state doesn't contain this event yet (dedup desync) OR
                     //  - the current state has the same event but with blank player, and the provider now sends a player name (upgrade).
-                    val hasSameEventInState = state.lastEvents.any {
-                        val k = listOf(matchKey, it.time, it.event, it.homeAway)
-                            .joinToString("|") { v -> (v ?: "").trim().lowercase() }
-                        k == stableId
-                    }
-
-                    val isUpgrade = state.lastEvents.any {
-                        val k = listOf(matchKey, it.time, it.event, it.homeAway)
-                            .joinToString("|") { v -> (v ?: "").trim().lowercase() }
-                        k == stableId && it.player.isNullOrBlank() && !e.player.isNullOrBlank()
-                    }
+                    val existing = existingByKey[stableId]
+                    val hasSameEventInState = existing != null
+                    val isUpgrade = existing?.player.isNullOrBlank() && !e.player.isNullOrBlank()
 
                     val isNewByDedup = dedup.isNew(matchKey, stableId)
 
@@ -212,6 +206,10 @@ class LiveScorePoller(
             matchService.publishLiveBoard()
         }
     }
+
+    private fun stableEventKey(matchKey: String?, time: String?, event: String?, homeAway: String?): String =
+        listOf(matchKey, time, event, homeAway)
+            .joinToString(separator = "|") { (it ?: "").trim().lowercase() }
 
 }
 
