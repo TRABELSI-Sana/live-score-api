@@ -1,0 +1,72 @@
+@startuml
+autonumber
+
+actor User
+participant "Front (Vite UI)" as FE
+participant "SSE /api/stream/live" as SSE
+participant "Backend (Spring Boot)" as BE
+participant "StartupSeeder" as SS
+participant "LiveScorePoller" as LP
+participant "FixturesPoller" as FP
+participant "EventsPoller" as EP
+participant "Redis" as R
+participant "LiveScore API" as LS
+
+== Application Startup ==
+BE -> SS : ApplicationRunner.run()
+SS -> LP : pollLiveMatches()
+LP -> LS : GET /matches/live.json
+LS --> LP : Live matches JSON
+LP -> BE : upsertFromProvider(matches)
+BE -> R : SET matchState:{matchKey}
+BE -> R : ADD matchKey to live_keys
+BE -> R : ADD matchKey to board_keys
+
+SS -> FP : pollFixturesToday()
+FP -> LS : GET /fixtures/matches.json
+LS --> FP : Fixtures JSON (today)
+FP -> BE : upsertFromProvider(fixtures)
+BE -> R : SET matchState:{matchKey}
+BE -> R : ADD matchKey to board_keys
+
+SS -> BE : publishLiveBoard()
+BE -> R : GET board_keys
+R --> BE : List<MatchState>
+BE -> SSE : publish(live-board, snapshot)
+
+== Client connects ==
+User -> FE : Open site /
+FE -> SSE : GET /api/stream/live
+SSE -> BE : subscribe(live-board)
+BE -> R : GET board_keys + states
+R --> BE : List<MatchState>
+BE -> SSE : event:live (snapshot)
+SSE -> FE : render board
+
+== Periodic Live Matches Polling ==
+loop every 60-120s
+LP -> LS : GET /matches/live.json
+LS --> LP : Updated live matches
+LP -> BE : upsertFromProvider(matches)
+BE -> R : UPDATE matchState
+BE -> SSE : publish(live-board, update)
+end
+
+== Periodic Events Polling ==
+loop every 60-90s (only live matches)
+EP -> R : GET live_keys
+R --> EP : matchKeys
+EP -> R : GET matchState(matchKey)
+R --> EP : MatchState(match_id)
+EP -> LS : GET /scores/events.json?id=match_id
+LS --> EP : Events JSON
+EP -> BE : appendEvents(matchKey, events)
+BE -> R : MERGE + DEDUP events
+BE -> SSE : publish(live-board, update)
+end
+
+== Match Finished ==
+BE -> R : REMOVE matchKey from live_keys
+BE -> SSE : publish(live-board, final state)
+
+@enduml
