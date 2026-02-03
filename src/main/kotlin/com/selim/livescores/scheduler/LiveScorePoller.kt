@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.selim.livescores.domain.MatchEvent
 import com.selim.livescores.domain.MatchState
+import com.selim.livescores.domain.MatchStatus
 import com.selim.livescores.repository.redis.EventDedupStore
 import com.selim.livescores.provider.livescore.LiveScoreApiClient
 import com.selim.livescores.service.MatchService
@@ -71,6 +72,34 @@ class LiveScorePoller(
         }
     }
 
+    private fun stableEventKey(matchKey: String, e: MatchEvent): String =
+        listOf(matchKey, e.time, e.event, e.homeAway)
+            .joinToString(separator = "|") { keyPart(it) }
+
+    private fun keyPart(value: String?): String = (value ?: "").trim().lowercase()
+
+    private fun hasSameEventInState(state: MatchState, matchKey: String, stableId: String): Boolean =
+        state.lastEvents.any { stableEventKey(matchKey, it) == stableId }
+
+    private fun isUpgrade(state: MatchState, matchKey: String, stableId: String, incoming: MatchEvent): Boolean =
+        state.lastEvents.any {
+            stableEventKey(matchKey, it) == stableId &&
+                it.player.isNullOrBlank() &&
+                !incoming.player.isNullOrBlank()
+        }
+
+    private fun shouldAcceptEvent(
+        state: MatchState,
+        matchKey: String,
+        stableId: String,
+        incoming: MatchEvent,
+        isNewByDedup: Boolean
+    ): Boolean {
+        val hasSame = hasSameEventInState(state, matchKey, stableId)
+        val isUpgrade = isUpgrade(state, matchKey, stableId, incoming)
+        return isNewByDedup || !hasSame || isUpgrade
+    }
+
     private fun <T> List<T>.chunkFromCursor(max: Int): List<T> {
         if (this.isEmpty()) return emptyList()
         if (max <= 0) return emptyList()
@@ -100,10 +129,8 @@ class LiveScorePoller(
             .map { matchService.normalizeForKeys(it, previousBoardKeys) }
 
         // Live = à poller (events), Finished = à afficher sans polling
-        val liveMatches = providerMatches.filter {
-            it.status == "IN PLAY" || it.status == "ADDED TIME" || it.status == "HALF TIME BREAK"
-        }
-        val finishedMatches = providerMatches.filter { it.status == "FINISHED" }
+        val liveMatches = providerMatches.filter { MatchStatus.isLive(it.status) }
+        val finishedMatches = providerMatches.filter { MatchStatus.isFinished(it.status) }
 
         fun String?.ok() = !this.isNullOrBlank()
 
@@ -143,7 +170,7 @@ class LiveScorePoller(
     @Scheduled(fixedDelay = 60_000)
     fun pollEvents() {
         val liveMatches = matchService.getLiveMatches()
-            .filter { it.status == "IN PLAY" || it.status == "ADDED TIME" || it.status == "HALF TIME BREAK" }
+            .filter { MatchStatus.isLive(it.status) }
 
         if (liveMatches.isEmpty()) return
         if (isApiDisabled()) return
@@ -156,7 +183,6 @@ class LiveScorePoller(
 
         toPoll.forEach { state ->
             val providerId = state.id ?: return@forEach
-            val matchKey = state.matchKey
 
             val json = guardedApiCall { api.getMatchEventsJson(providerId) } ?: return@forEach
             val resp = try {
@@ -167,17 +193,15 @@ class LiveScorePoller(
             }
             if (resp.success != true) return@forEach
 
+            val matchKey = state.matchKey
             val newEvents = mutableListOf<MatchEvent>()
-            val existingByKey = state.lastEvents.associateBy {
-                stableEventKey(matchKey, it.time, it.event, it.homeAway)
-            }
 
             resp.data?.event.orEmpty()
                 .filter { !it.event.isNullOrBlank() && it.event != "." }
                 .forEach { e ->
                     // Provider `id` is not stable between polls; use a composite stable key.
                     // Important: do NOT include player name in the stable key, because provider may first send "" then later send the real name.
-                    val stableId = stableEventKey(matchKey, e.time, e.event, e.homeAway)
+                    val stableId = stableEventKey(matchKey, e)
 
                     // 🔧 Prod fix: our Redis dedup store can get out of sync with the match state (different TTLs / restarts),
                     // and it also blocks "enrichment" updates (player empty -> player name later).
@@ -185,13 +209,9 @@ class LiveScorePoller(
                     //  - it's new according to dedup OR
                     //  - the current state doesn't contain this event yet (dedup desync) OR
                     //  - the current state has the same event but with blank player, and the provider now sends a player name (upgrade).
-                    val existing = existingByKey[stableId]
-                    val hasSameEventInState = existing != null
-                    val isUpgrade = existing?.player.isNullOrBlank() && !e.player.isNullOrBlank()
-
                     val isNewByDedup = dedup.isNew(matchKey, stableId)
 
-                    if (!isNewByDedup && hasSameEventInState && !isUpgrade) return@forEach
+                    if (!shouldAcceptEvent(state, matchKey, stableId, e, isNewByDedup)) return@forEach
 
                     newEvents.add(e)
                 }
@@ -206,10 +226,6 @@ class LiveScorePoller(
             matchService.publishLiveBoard()
         }
     }
-
-    private fun stableEventKey(matchKey: String?, time: String?, event: String?, homeAway: String?): String =
-        listOf(matchKey, time, event, homeAway)
-            .joinToString(separator = "|") { (it ?: "").trim().lowercase() }
 
 }
 

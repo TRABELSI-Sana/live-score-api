@@ -1,6 +1,7 @@
 package com.selim.livescores.repository.redis
 
 import com.selim.livescores.domain.MatchState
+import com.selim.livescores.domain.MatchStatus
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -14,9 +15,9 @@ class MatchStateStore(private val matchStateRedisTemplate: RedisTemplate<String,
 
     fun put(state: MatchState, ttl: Duration? = null) {
         val computedTtl = ttl ?: when (state.status) {
-            "NOT STARTED" -> Duration.ofHours(24)     // fixtures: garder toute la journée
-            "IN PLAY", "ADDED TIME", "HALF TIME BREAK" -> Duration.ofHours(6)
-            "FINISHED" -> Duration.ofHours(48)        // garder l’historique un peu
+            MatchStatus.NOT_STARTED -> Duration.ofHours(24)     // fixtures: garder toute la journée
+            MatchStatus.IN_PLAY, MatchStatus.ADDED_TIME, MatchStatus.HALF_TIME_BREAK -> Duration.ofHours(6)
+            MatchStatus.FINISHED -> Duration.ofHours(48)        // garder l’historique un peu
             else -> Duration.ofHours(12)
         }
 

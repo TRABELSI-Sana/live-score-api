@@ -14,28 +14,27 @@
   <meta property="og:title" content="LiveFoot – Scores en direct" />
   <meta property="og:description" content="Scores et résultats de football en temps réel." />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="" id="og-url" />
-  <link rel="canonical" href="https://livefoot.online/" />
+  <meta property="og:url" content="https://livefoot.online/" id="og-url" />
+  <link rel="canonical" href="https://livefoot.online/" id="canonical-url" />
+  <link rel="alternate" href="https://livefoot.tn/" hreflang="fr-tn" />
 
   <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6754395387524937"
           crossorigin="anonymous"
   ></script>
-
-  <style>
-    .static-shell { max-width: 980px; margin: 24px auto 0; padding: 0 16px; }
-    .static-shell h1 { margin: 0 0 8px; font-size: 22px; }
-    .static-shell p { margin: 6px 0; opacity: .9; }
-    .site-footer { position: fixed; right: 18px; bottom: 18px; display: flex; gap: 14px; font-size: 14px; z-index: 20; }
-    .site-footer a { color: rgba(255,255,255,.7); text-decoration: none; }
-    .site-footer a:hover { color: rgba(255,255,255,.95); text-decoration: underline; }
-    @media (max-width: 720px) {
-      .site-footer { position: static; justify-content: center; padding: 16px; }
+  <script type="application/ld+json" id="structured-data">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "LiveFoot",
+      "url": "https://livefoot.online/",
+      "inLanguage": "fr-FR",
+      "description": "Scores en direct de football, résultats et événements clés des matchs."
     }
-  </style>
-  <script type="module" crossorigin src="/assets/index-BCf9jK2a.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BXvInNK7.css">
+  </script>
+  <script type="module" crossorigin src="/assets/index-Dst097Ur.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-0vIDXpkV.css">
 </head>
 <body>
 <div class="page-layout">
@@ -44,6 +43,12 @@
     <h1>LiveFoot – Scores de football en direct</h1>
     <p>Suivez les matchs du jour en temps réel : scores, buts et événements.</p>
     <p>Compétitions populaires : Ligue 1, Premier League, Bundesliga, Serie A, Liga…</p>
+    <p>Découvrez rapidement les rencontres en cours, les statuts des matchs et les faits marquants.</p>
+    <ul>
+      <li>Tableau clair des scores et minutes de jeu.</li>
+      <li>Suivi des cartons, buts et temps additionnel.</li>
+      <li>Informations mises à jour en continu.</li>
+    </ul>
 
     <nav class="static-links">
       <a href="/about.html">À propos</a>
@@ -66,4 +71,15 @@
 
 </body>
 
+<script>
+  (function () {
+    var origin = window.location.origin;
+    var canonicalUrl = origin + window.location.pathname;
+    var og = document.getElementById('og-url');
+    if (og) og.setAttribute('content', canonicalUrl);
+
+    var canonical = document.getElementById('canonical-url');
+    if (canonical) canonical.setAttribute('href', canonicalUrl);
+  })();
+</script>
 </html>
