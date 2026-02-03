@@ -51,6 +51,17 @@ class LiveScoreApiClient(
         return client.get().uri(uri).retrieve().body(String::class.java)!!
     }
 
+    fun getCompetitionTableJson(competitionId: Int): String {
+        val uri = buildString {
+            append("/api-client/competitions/table.json")
+            append("?key=").append(key)
+            append("&secret=").append(secret)
+            append("&competition_id=").append(competitionId)
+        }
+        if (!tryConsumeQuota()) throw QuotaExceededException()
+        return client.get().uri(uri).retrieve().body(String::class.java)!!
+    }
+
     fun competitionIdsList(): List<Int> =
         competitionIds
             .split(",")

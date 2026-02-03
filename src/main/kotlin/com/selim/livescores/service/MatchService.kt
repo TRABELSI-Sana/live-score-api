@@ -14,7 +14,8 @@ class MatchService(
     private val matchStateStore: MatchStateStore,
     private val liveMatchesStore: LiveMatchesStore,
     private val sseHub: SseHub,
-    private val redis: StringRedisTemplate
+    private val redis: StringRedisTemplate,
+    private val standingsService: StandingsService
 ) {
     /**
      * Exposed for pollers: compute the stable key for a provider match (fixtures vs live) before we build key lists.
@@ -102,6 +103,11 @@ class MatchService(
         val merged = normalized.copy(
             lastEvents = current?.lastEvents ?: providerMatch.lastEvents
         )
+
+        val scoresChanged = current?.scores != merged.scores
+        if (scoresChanged) {
+            merged.competition?.id?.let { standingsService.invalidateCompetition(it) }
+        }
 
         matchStateStore.put(merged)
         sseHub.publish(key, "state", merged)
