@@ -92,19 +92,13 @@ class EventDeduplicator(private val matchKey: String) {
      *
      * The provider can return the *same* logical event multiple times with small differences
      * (homeAway sometimes missing, time formatted as 45 / 45' / 45+2, etc.).
+     * Provider event ids are not stable across polls, so we intentionally ignore them.
      *
      * Strategy:
-     * - If provider gives a stable id, use it.
-     * - Else: key = (type + minuteKey) and optionally player (when present).
+     * - Key = (type + minuteKey) and optionally player (when present).
      *   When a later event becomes "richer" (player/homeAway filled), it replaces the older one.
      */
     private fun keysFor(e: MatchEvent): Pair<String, String> {
-        val id = (e.id ?: "").trim()
-        if (id.isNotEmpty()) {
-            val k = "$matchKey|id:$id"
-            return k to k
-        }
-
         val minuteKey = dedupMinuteKey(e)
         val type = normEventType(e.event)
         val side = normSide(e.homeAway)
