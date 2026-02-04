@@ -8,6 +8,7 @@ import com.selim.livescores.repository.redis.LiveMatchesStore
 import com.selim.livescores.sse.SseHub
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
+import java.time.LocalDate
 
 @Service
 class MatchService(
@@ -38,8 +39,18 @@ class MatchService(
         val raw = getBoardMatchKeys()
             .mapNotNull { matchStateStore.get(it) }
 
+        val today = LocalDate.now().toString()
+        val filtered = raw.filter { m ->
+            if (m.status == MatchStatus.NOT_STARTED) {
+                val date = m.fixtureDate?.trim()
+                date.isNullOrBlank() || date == today
+            } else {
+                true
+            }
+        }
+
         val deduped = LinkedHashMap<String, MatchState>()
-        raw.forEach { m ->
+        filtered.forEach { m ->
             val k = identityKey(m)
             val existing = deduped[k]
             deduped[k] = if (existing == null) m else chooseBetter(existing, m)
@@ -148,7 +159,11 @@ class MatchService(
                     (m.scheduled?.trim() == sched)
             }
 
-        return if (existing?.fixtureId != null) providerMatch.copy(fixtureId = existing.fixtureId) else providerMatch
+        return if (existing?.fixtureId != null) {
+            providerMatch.copy(fixtureId = existing.fixtureId, fixtureDate = existing.fixtureDate)
+        } else {
+            providerMatch
+        }
     }
 
     /**

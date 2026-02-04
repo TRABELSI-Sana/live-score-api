@@ -12,6 +12,7 @@ import com.selim.livescores.service.MatchService
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.LocalDate
 
 @Component
 class FixturesPoller(
@@ -28,6 +29,7 @@ class FixturesPoller(
 
         if (ids.isEmpty()) return
 
+        val today = LocalDate.now().toString()
         val plannedStates = mutableListOf<MatchState>()
 
         ids.forEach { compId ->
@@ -39,6 +41,7 @@ class FixturesPoller(
                 plannedStates += MatchState(
                     id = null,                      // pas encore de match_id live
                     fixtureId = f.id,
+                    fixtureDate = today,
                     scheduled = f.time?.take(5),    // "19:30"
                     status = MatchStatus.NOT_STARTED,
                     time = null,

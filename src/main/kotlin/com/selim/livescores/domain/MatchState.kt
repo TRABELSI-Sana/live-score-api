@@ -16,6 +16,9 @@ data class MatchState(
     @JsonProperty("fixture_id")
     val fixtureId: Long? = null,
 
+    @JsonProperty("fixture_date")
+    val fixtureDate: String? = null,
+
     val scheduled: String? = null,
     val status: String? = null,
     val time: String? = null,

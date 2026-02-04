@@ -177,7 +177,9 @@ class LiveScorePoller(
 
         // ✅ Optimization: do not poll events for ALL live matches every tick.
         // Pick a rotating slice to reduce requests and smooth quota usage.
-        val toPoll = liveMatches.chunkFromCursor(max = 8)
+        // Target: every live match gets polled about every ~5 minutes (cap to avoid spikes).
+        val maxPerTick = ((liveMatches.size + 4) / 5).coerceIn(8, 20)
+        val toPoll = liveMatches.chunkFromCursor(max = minOf(liveMatches.size, maxPerTick))
 
         var anyUpdate = false
 
