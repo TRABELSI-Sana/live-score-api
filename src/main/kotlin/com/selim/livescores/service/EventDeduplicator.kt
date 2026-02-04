@@ -140,10 +140,8 @@ class EventDeduplicator(private val matchKey: String) {
         if (newHasTime && !oldHasTime) return true
         if (!newHasTime && oldHasTime) return false
 
-        // Otherwise keep the most recent one
-        val newTs = newE.ts ?: Instant.EPOCH
-        val oldTs = oldE.ts ?: Instant.EPOCH
-        return newTs.isAfter(oldTs)
+        // Otherwise keep the existing one to avoid churn on identical events.
+        return false
     }
 
     private fun sortTs(e: MatchEvent): Instant = e.ts ?: Instant.EPOCH

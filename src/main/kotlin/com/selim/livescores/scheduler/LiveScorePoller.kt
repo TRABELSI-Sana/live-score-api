@@ -108,6 +108,23 @@ class LiveScorePoller(
         return if (start < end) this.subList(start, end) else this.take(max)
     }
 
+    private fun refreshFinishedEvents(state: MatchState) {
+        val providerId = state.id ?: return
+        val json = guardedApiCall { api.getMatchEventsJson(providerId) } ?: return
+        val resp = try {
+            objectMapper.readValue(json, MatchEventsResponse::class.java)
+        } catch (e: Exception) {
+            disableApiFor(Duration.ofMinutes(10), "json_parse_error")
+            return
+        }
+        if (resp.success != true) return
+
+        val events = resp.data?.event.orEmpty()
+            .filter { !it.event.isNullOrBlank() && it.event != "." }
+
+        matchService.replaceEvents(state.matchKey, events)
+    }
+
     @Scheduled(fixedDelay = 60_000)
     fun pollLiveMatches() {
         val previousLiveKeys = matchService.getLiveMatchKeys()
@@ -148,14 +165,26 @@ class LiveScorePoller(
 
         // Upsert les live + finished (important: score final + status)
         liveMatches.forEach { matchService.upsertFromProvider(it, previousBoardKeys) }
-        finishedMatches.forEach { matchService.upsertFromProvider(it, previousBoardKeys) }
+        finishedMatches.forEach { match ->
+            val previous = matchService.getOrInitState(match.matchKey)
+            val wasFinished = previous.status == MatchStatus.FINISHED
+            val updated = matchService.upsertFromProvider(match, previousBoardKeys)
+            if (!wasFinished) {
+                refreshFinishedEvents(updated)
+            }
+        }
 
         // Mettre à jour les live keys (pour pollEvents)
         matchService.replaceLiveMatchKeys(newLiveKeys)
 
         // Si un match était live avant mais n’est plus live maintenant => freeze FT
         val disappearedFromLive = previousLiveKeys.filter { it !in newLiveKeys.toSet() }
-        disappearedFromLive.forEach { matchService.markAsFinished(it) }
+        disappearedFromLive.forEach {
+            val updated = matchService.markAsFinished(it)
+            if (updated != null) {
+                refreshFinishedEvents(updated)
+            }
+        }
 
         // Normaliser ceux explicitement FINISHED (au cas où)
         newFinishedKeys.forEach { matchService.markAsFinished(it) }

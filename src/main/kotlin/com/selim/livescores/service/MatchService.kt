@@ -180,7 +180,19 @@ class MatchService(
         val deduplicator = EventDeduplicator(matchKey)
         val merged = deduplicator.merge(current.lastEvents, newEvents, keepLast)
 
+        if (merged == current.lastEvents) {
+            return current
+        }
+
         val updated = current.copy(lastEvents = merged)
+        matchStateStore.put(updated)
+        sseHub.publish(matchKey, "state", updated)
+        return updated
+    }
+
+    fun replaceEvents(matchKey: String, events: List<MatchEvent>): MatchState {
+        val current = getOrInitState(matchKey)
+        val updated = current.copy(lastEvents = events)
         matchStateStore.put(updated)
         sseHub.publish(matchKey, "state", updated)
         return updated
