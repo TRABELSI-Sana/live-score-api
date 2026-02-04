@@ -9,6 +9,7 @@ import com.selim.livescores.domain.Scores
 import com.selim.livescores.domain.Team
 import com.selim.livescores.provider.livescore.LiveScoreApiClient
 import com.selim.livescores.service.MatchService
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
@@ -16,7 +17,9 @@ import org.springframework.stereotype.Component
 class FixturesPoller(
     private val api: LiveScoreApiClient,
     private val objectMapper: ObjectMapper,
-    private val matchService: MatchService
+    private val matchService: MatchService,
+    private val redisTemplate: StringRedisTemplate
+
 ) {
     // les matchs planifiés pour aujourd’hui
     @Scheduled(cron = "0 5 6 * * *") // 06:05 tous les jours
@@ -60,6 +63,15 @@ class FixturesPoller(
 
         // push SSE board
         matchService.publishLiveBoard()
+    }
+
+    @Scheduled(cron = "0 0 3 * * *")
+    fun reset() {
+        redisTemplate.execute { connection ->
+            connection.serverCommands().flushDb()
+            null
+        }
+        println("🧹 Redis flushed at 03:00")
     }
 }
 

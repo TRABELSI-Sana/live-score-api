@@ -100,8 +100,14 @@ class MatchService(
         val key = normalized.matchKey
         val current = matchStateStore.get(key)
 
+        val mergedEvents = when {
+            current == null -> providerMatch.lastEvents
+            current.lastEvents.isEmpty() && providerMatch.lastEvents.isNotEmpty() -> providerMatch.lastEvents
+            else -> current.lastEvents
+        }
+
         val merged = normalized.copy(
-            lastEvents = current?.lastEvents ?: providerMatch.lastEvents
+            lastEvents = mergedEvents
         )
 
         val scoresChanged = current?.scores != merged.scores

@@ -107,7 +107,9 @@ class EventDeduplicator(private val matchKey: String) {
 
         val minuteKey = dedupMinuteKey(e)
         val type = normEventType(e.event)
-        val noPlayer = "$matchKey|$type|m:$minuteKey"
+        val side = normSide(e.homeAway)
+        val sidePart = if (side == "h" || side == "a") "|s:$side" else ""
+        val noPlayer = "$matchKey|$type|m:$minuteKey$sidePart"
 
         val p = normPlayerKey(e.player)
         val withPlayer = if (p.isNotEmpty()) "$noPlayer|p:$p" else noPlayer
