@@ -111,9 +111,11 @@ class MatchService(
         val key = normalized.matchKey
         val current = matchStateStore.get(key)
 
+        val deduplicator = EventDeduplicator(key)
         val mergedEvents = when {
-            current == null -> providerMatch.lastEvents
-            current.lastEvents.isEmpty() && providerMatch.lastEvents.isNotEmpty() -> providerMatch.lastEvents
+            current == null -> deduplicator.merge(emptyList(), providerMatch.lastEvents, 30)
+            current.lastEvents.isEmpty() && providerMatch.lastEvents.isNotEmpty() ->
+                deduplicator.merge(current.lastEvents, providerMatch.lastEvents, 30)
             else -> current.lastEvents
         }
 
